@@ -25,10 +25,23 @@ const todos: Todo[] = [
 let nextId = 3;
 
 export const todoRouter = router({
-  // LEER todos (query)
-  list: publicProcedure.query(() => {
-    return todos;
-  }),
+  // LEER todos (query) con paginación por cursor
+  list: publicProcedure
+    .input(
+      z.object({
+        limit: z.number().min(1).max(100).default(20),
+        cursor: z.number().nullish(),
+      })
+    )
+    .query(({ input }) => {
+      const start = input.cursor ?? 0;
+      const items = todos.slice(start, start + input.limit);
+      return {
+        items,
+        nextCursor:
+          start + items.length < todos.length ? start + items.length : null,
+      };
+    }),
 
   // CREAR un todo (mutation)
   create: publicProcedure

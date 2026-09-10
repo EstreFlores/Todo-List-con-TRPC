@@ -4,33 +4,53 @@ import { useState } from "react";
 import { trpc } from "@/utils/trpc";
 
 export default function Home() {
-  // Leer la lista de todos
-  const todos = trpc.todo.list.useQuery();
+  // Leer la lista de todos (paginada )
+  const todos = trpc.todo.list.useInfiniteQuery(
+    { limit: 20 },
+    { getNextPageParam: (lastPage) => lastPage.nextCursor }
+  );
   const utils = trpc.useUtils();
 
   // Mutaciones (escribir en el server)
-  // correccion aqui
+  // create: cancela refetches en vuelo, y agrega al cache lo que devolvió el server (sin refetch)
   const createTodo = trpc.todo.create.useMutation({
     async onMutate() {
       await utils.todo.list.cancel();
     },
     onSuccess: (created) => {
-      utils.todo.list.setData(undefined, (old) => [...(old ?? []), created]);
+      utils.todo.list.setInfiniteData({ limit: 20 }, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page, i) =>
+            i === 0 ? { ...page, items: [...page.items, created] } : page
+          ),
+        };
+      });
     },
   });
 
-  // update: optimista — actualiza la UI al instante, y si el server falla, revierte (rollback)
+  // update: actualiza la UI al instante, y si el server falla, revierte (rollback)
   const updateTodo = trpc.todo.update.useMutation({
     async onMutate(vars) {
       await utils.todo.list.cancel();
-      const prev = utils.todo.list.getData();
-      utils.todo.list.setData(undefined, (old) =>
-        old?.map((t) => (t.id === vars.id ? { ...t, ...vars } : t))
-      );
+      const prev = utils.todo.list.getInfiniteData({ limit: 20 });
+      utils.todo.list.setInfiniteData({ limit: 20 }, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            items: page.items.map((t) =>
+              t.id === vars.id ? { ...t, ...vars } : t
+            ),
+          })),
+        };
+      });
       return { prev };
     },
     onError(_err, _vars, ctx) {
-      if (ctx?.prev) utils.todo.list.setData(undefined, ctx.prev);
+      if (ctx?.prev) utils.todo.list.setInfiniteData({ limit: 20 }, ctx.prev);
     },
   });
 
@@ -38,21 +58,28 @@ export default function Home() {
   const deleteTodo = trpc.todo.delete.useMutation({
     async onMutate(vars) {
       await utils.todo.list.cancel();
-      const prev = utils.todo.list.getData();
-      utils.todo.list.setData(undefined, (old) =>
-        old?.filter((t) => t.id !== vars.id)
-      );
+      const prev = utils.todo.list.getInfiniteData({ limit: 20 });
+      utils.todo.list.setInfiniteData({ limit: 20 }, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            items: page.items.filter((t) => t.id !== vars.id),
+          })),
+        };
+      });
       return { prev };
     },
     onError(_err, _vars, ctx) {
-      if (ctx?.prev) utils.todo.list.setData(undefined, ctx.prev);
+      if (ctx?.prev) utils.todo.list.setInfiniteData({ limit: 20 }, ctx.prev);
     },
   });
 
   // Estado del formulario de crear
   const [newTitle, setNewTitle] = useState("");
 
-  // Estado de la edición: el id del todo que se está editando y su texto temporal
+  
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState("");
 
@@ -117,8 +144,9 @@ export default function Home() {
         )}
 
         {todos.data && (
-          <ul className="mt-4 space-y-2">
-            {todos.data.map((todo) => (
+          <>
+            <ul className="mt-4 space-y-2">
+              {todos.data.pages.flatMap((page) => page.items).map((todo) => (
               <li key={todo.id} className="flex items-center gap-3 rounded border p-3">
                 {/* Este es el Checkbox para marcar completado */}
                 <input
@@ -173,7 +201,19 @@ export default function Home() {
                 )}
               </li>
             ))}
-          </ul>
+            </ul>
+
+            {/* Botón para cargar la siguiente página */}
+            {todos.hasNextPage && (
+              <button
+                onClick={() => todos.fetchNextPage()}
+                disabled={todos.isFetchingNextPage}
+                className="mt-4 rounded bg-blue-600 px-4 py-2 text-white"
+              >
+                {todos.isFetchingNextPage ? "Cargando..." : "Cargar más"}
+              </button>
+            )}
+          </>
         )}
       </div>
     </main>
