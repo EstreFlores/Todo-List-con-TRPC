@@ -1,4 +1,5 @@
 import { router, publicProcedure } from "../trpc";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 type Todo = {
@@ -63,7 +64,7 @@ export const todoRouter = router({
     .mutation(({ input }) => {
       const todo = todos.find((t) => t.id === input.id);
       if (!todo) {
-        throw new Error("Todo no encontrado");
+        throw new TRPCError({ code: "NOT_FOUND", message: "Todo no encontrado" });
       }
       if (input.title !== undefined) todo.title = input.title;
       if (input.completed !== undefined) todo.completed = input.completed;
@@ -80,7 +81,7 @@ export const todoRouter = router({
     .mutation(({ input }) => {
       const index = todos.findIndex((t) => t.id === input.id);
       if (index === -1) {
-        throw new Error("Todo no encontrado");
+        throw new TRPCError({ code: "NOT_FOUND", message: "Todo no encontrado" });
       }
       const [removed] = todos.splice(index, 1);
       return removed;
