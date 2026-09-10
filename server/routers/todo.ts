@@ -33,7 +33,7 @@ export const todoRouter = router({
   create: publicProcedure
     .input(
       z.object({
-        title: z.string().min(1, "El título no puede estar vacío"),
+        title: z.string().trim().min(1, "El título no puede estar vacío"),
       })
     )
     .mutation(({ input }) => {
@@ -49,11 +49,16 @@ export const todoRouter = router({
   // ACTUALIZAR un todo (título )
   update: publicProcedure
     .input(
-      z.object({
-        id: z.number(),
-        title: z.string().min(1).optional(),
-        completed: z.boolean().optional(),
-      })
+      z
+        .object({
+          id: z.number().int().positive(),
+          title: z.string().trim().min(1).optional(),
+          completed: z.boolean().optional(),
+        })
+        .refine(
+          (data) => data.title !== undefined || data.completed !== undefined,
+          { message: "Debes enviar al menos title o completed" }
+        )
     )
     .mutation(({ input }) => {
       const todo = todos.find((t) => t.id === input.id);
@@ -69,7 +74,7 @@ export const todoRouter = router({
   delete: publicProcedure
     .input(
       z.object({
-        id: z.number(),
+        id: z.number().int().positive(),
       })
     )
     .mutation(({ input }) => {
