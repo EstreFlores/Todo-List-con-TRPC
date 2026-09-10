@@ -7,7 +7,7 @@ type Todo = {
   completed: boolean;
 };
 
-let todos: Todo[] = [
+const todos: Todo[] = [
   {
     id: 1,
     title: "Aprender tRPC, este es un ejemplo",

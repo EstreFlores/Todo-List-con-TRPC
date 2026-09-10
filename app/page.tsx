@@ -9,14 +9,44 @@ export default function Home() {
   const utils = trpc.useUtils();
 
   // Mutaciones (escribir en el server)
+  // correccion aqui
   const createTodo = trpc.todo.create.useMutation({
-    onSuccess: () => utils.todo.list.invalidate(),
+    async onMutate() {
+      await utils.todo.list.cancel();
+    },
+    onSuccess: (created) => {
+      utils.todo.list.setData(undefined, (old) => [...(old ?? []), created]);
+    },
   });
+
+  // update: optimista — actualiza la UI al instante, y si el server falla, revierte (rollback)
   const updateTodo = trpc.todo.update.useMutation({
-    onSuccess: () => utils.todo.list.invalidate(),
+    async onMutate(vars) {
+      await utils.todo.list.cancel();
+      const prev = utils.todo.list.getData();
+      utils.todo.list.setData(undefined, (old) =>
+        old?.map((t) => (t.id === vars.id ? { ...t, ...vars } : t))
+      );
+      return { prev };
+    },
+    onError(_err, _vars, ctx) {
+      if (ctx?.prev) utils.todo.list.setData(undefined, ctx.prev);
+    },
   });
+
+  // delete: optimista — quita de la lista al instante, con rollback si falla
   const deleteTodo = trpc.todo.delete.useMutation({
-    onSuccess: () => utils.todo.list.invalidate(),
+    async onMutate(vars) {
+      await utils.todo.list.cancel();
+      const prev = utils.todo.list.getData();
+      utils.todo.list.setData(undefined, (old) =>
+        old?.filter((t) => t.id !== vars.id)
+      );
+      return { prev };
+    },
+    onError(_err, _vars, ctx) {
+      if (ctx?.prev) utils.todo.list.setData(undefined, ctx.prev);
+    },
   });
 
   // Estado del formulario de crear
@@ -62,7 +92,7 @@ export default function Home() {
       <div className="border rounded-lg p-6">
         <p className="text-lg">Respuesta de tRPC:</p>
 
-        {/* Formulario para crear */}
+        {/* Formulario */}
         <form onSubmit={handleCreate} className="mt-4 flex gap-2">
           <input
             type="text"
@@ -135,7 +165,7 @@ export default function Home() {
                     <button
                       onClick={() => deleteTodo.mutate({ id: todo.id })}
                       className="rounded bg-red-600 px-3 py-1 text-white"
-                      disabled={deleteTodo.isPending}
+                      disabled={deleteTodo.isPending && deleteTodo.variables?.id === todo.id}
                     >
                       Borrar
                     </button>
