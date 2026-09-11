@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# todo-trpc
 
-## Getting Started
+Todo List full-stack con **tRPC v11** + **Next.js (App Router)** + **Drizzle ORM** + **SQLite (libsql)** + **TanStack Query v5**.
 
-First, run the development server:
+## Stack
+
+- **Next.js 16** (App Router, React Server Components + Server Actions)
+- **tRPC v11**: api tipo-segura cliente↔server, batching por HTTP, `httpBatchLink`
+- **Drizzle ORM + SQLite**: persistencia real en archivo (`todo.db`), cursor keyset en `list`
+- **TanStack Query v5**: cache, `useInfiniteQuery` para paginación, estados de mutación
+- **Prerender + SSR**: `createHydrationHelpers` prefetchea la primera página en el server y la serializa con `dehydrate` → la app no muestra "Cargando..." al abrir
+
+## Scripts
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run dev      # desarrollo
+npm run build    # build de producción
+npm run start    # servir el build
+npm run lint     # eslint
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Cómo funciona (resumen)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Rutas API: `app/api/trpc/[trpc]/route.ts`
+- Router: `server/routers/` (CRUD de todos, paginación por cursor, actualización parcial)
+- Context + middleware: `server/trpc.ts` (`timing`, `isAuthed` — auth simulada por header `x-user-id`)
+- Capa cliente: `utils/trpc.ts`, `utils/providers.tsx`, `utils/ssr.ts` (prefetch + hydration)
+- DB: `server/db/` (schema, cliente libsql), migraciones con `drizzle-kit`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Para crear/actualizar el schema de la DB:
 
-## Learn More
+```bash
+npx drizzle-kit push
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Notas
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- La autenticación es **simulada**: el usuario se identifica con el header `x-user-id` (`demo-user`). Es el gancho para conectar una cookie/JWT real más adelante.
+- La DB se crea como `todo.db` en la raíz del proyecto (ignorada por git).
