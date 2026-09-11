@@ -15,7 +15,7 @@ export function Providers({
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 30_000,          // 30s 
+            staleTime: 30_000,          // 30s
             refetchOnWindowFocus: false,
           },
         },
@@ -27,7 +27,6 @@ export function Providers({
       links: [
         httpBatchLink({
           url: "/api/trpc",
-        
           headers() {
             return { "x-user-id": "demo-user" };
           },
@@ -39,13 +38,10 @@ export function Providers({
   );
 
   return (
-    <trpc.Provider
-      client={trpcClient}
-      queryClient={queryClient}
-    >
-      <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={queryClient}>
+      <trpc.Provider client={trpcClient} queryClient={queryClient}>
         {children}
-      </QueryClientProvider>
-    </trpc.Provider>
+      </trpc.Provider>
+    </QueryClientProvider>
   );
 }
