@@ -1,28 +1,9 @@
 import { router, publicProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
+import { asc, eq, gt } from "drizzle-orm";
 import { z } from "zod";
-
-type Todo = {
-  id: number;
-  title: string;
-  completed: boolean;
-};
-
-const todos: Todo[] = [
-  {
-    id: 1,
-    title: "Aprender tRPC, este es un ejemplo",
-    completed: false,
-  },
-  {
-    id: 2,
-    title: "Crear mi Todo List",
-    completed: false,
-  },
-];
-
-// Contador para asignar ids únicos
-let nextId = 3;
+import { db } from "../db/client";
+import { todos } from "../db/schema";
 
 export const todoRouter = router({
   // LEER todos (query) con paginación por cursor
@@ -33,13 +14,28 @@ export const todoRouter = router({
         cursor: z.number().nullish(),
       })
     )
-    .query(({ input }) => {
-      const start = input.cursor ?? 0;
-      const items = todos.slice(start, start + input.limit);
+    .query(async ({ input }) => {
+      const { limit, cursor } = input;
+
+      // Traemos limit+1 filas para saber si hay más páginas
+      const rows = cursor
+        ? await db
+            .select()
+            .from(todos)
+            .where(gt(todos.id, cursor))
+            .orderBy(asc(todos.id))
+            .limit(limit + 1)
+        : await db
+            .select()
+            .from(todos)
+            .orderBy(asc(todos.id))
+            .limit(limit + 1);
+
+      const items = rows.slice(0, limit);
       return {
         items,
         nextCursor:
-          start + items.length < todos.length ? start + items.length : null,
+          rows.length > limit ? items[items.length - 1].id : null,
       };
     }),
 
@@ -50,17 +46,15 @@ export const todoRouter = router({
         title: z.string().trim().min(1, "El título no puede estar vacío"),
       })
     )
-    .mutation(({ input }) => {
-      const newTodo: Todo = {
-        id: nextId++,
-        title: input.title,
-        completed: false,
-      };
-      todos.push(newTodo);
-      return newTodo;
+    .mutation(async ({ input }) => {
+      const [created] = await db
+        .insert(todos)
+        .values({ title: input.title })
+        .returning();
+      return created;
     }),
 
-  // ACTUALIZAR un todo (título )
+  // ACTUALIZAR un todo (título o completado)
   update: publicProcedure
     .input(
       z
@@ -74,14 +68,19 @@ export const todoRouter = router({
           { message: "Debes enviar al menos title o completed" }
         )
     )
-    .mutation(({ input }) => {
-      const todo = todos.find((t) => t.id === input.id);
-      if (!todo) {
+    .mutation(async ({ input }) => {
+      const [updated] = await db
+        .update(todos)
+        .set({
+          ...(input.title !== undefined ? { title: input.title } : {}),
+          ...(input.completed !== undefined ? { completed: input.completed } : {}),
+        })
+        .where(eq(todos.id, input.id))
+        .returning();
+      if (!updated) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Todo no encontrado" });
       }
-      if (input.title !== undefined) todo.title = input.title;
-      if (input.completed !== undefined) todo.completed = input.completed;
-      return todo;
+      return updated;
     }),
 
   // BORRAR un todo (mutation)
@@ -91,12 +90,14 @@ export const todoRouter = router({
         id: z.number().int().positive(),
       })
     )
-    .mutation(({ input }) => {
-      const index = todos.findIndex((t) => t.id === input.id);
-      if (index === -1) {
+    .mutation(async ({ input }) => {
+      const [deleted] = await db
+        .delete(todos)
+        .where(eq(todos.id, input.id))
+        .returning();
+      if (!deleted) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Todo no encontrado" });
       }
-      const [removed] = todos.splice(index, 1);
-      return removed;
+      return deleted;
     }),
 });
