@@ -1,4 +1,4 @@
-import { router, publicProcedure } from "../trpc";
+import { router, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { asc, eq, gt } from "drizzle-orm";
 import { z } from "zod";
@@ -7,7 +7,7 @@ import { todos } from "../db/schema";
 
 export const todoRouter = router({
   // LEER todos (query) con paginación por cursor
-  list: publicProcedure
+  list: protectedProcedure
     .input(
       z.object({
         limit: z.number().min(1).max(100).default(20),
@@ -17,7 +17,7 @@ export const todoRouter = router({
     .query(async ({ input }) => {
       const { limit, cursor } = input;
 
-      // Traemos limit+1 filas para saber si hay más páginas
+     
       const rows = cursor
         ? await db
             .select()
@@ -40,7 +40,7 @@ export const todoRouter = router({
     }),
 
   // CREAR un todo (mutation)
-  create: publicProcedure
+  create: protectedProcedure
     .input(
       z.object({
         title: z.string().trim().min(1, "El título no puede estar vacío"),
@@ -55,7 +55,7 @@ export const todoRouter = router({
     }),
 
   // ACTUALIZAR un todo (título o completado)
-  update: publicProcedure
+  update: protectedProcedure
     .input(
       z
         .object({
@@ -84,7 +84,7 @@ export const todoRouter = router({
     }),
 
   // BORRAR un todo (mutation)
-  delete: publicProcedure
+  delete: protectedProcedure
     .input(
       z.object({
         id: z.number().int().positive(),

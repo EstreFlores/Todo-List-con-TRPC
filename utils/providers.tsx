@@ -27,6 +27,10 @@ export function Providers({
       links: [
         httpBatchLink({
           url: "/api/trpc",
+        
+          headers() {
+            return { "x-user-id": "demo-user" };
+          },
           maxURLLength: 2083, // evita 414/431 detrás de proxies
           maxItems: 10,       // alineá con el maxBatchSize del server
         }),
