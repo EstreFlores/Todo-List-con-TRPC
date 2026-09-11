@@ -22,9 +22,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className="h-full antialiased">
       <body>
-        <HydrateClient>
-          <Providers>{children}</Providers>
-        </HydrateClient>
+        <Providers>
+          <HydrateClient>{children}</HydrateClient>
+        </Providers>
       </body>
     </html>
   );
